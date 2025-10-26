@@ -1,4 +1,4 @@
-menu "Example Configuration"
+menu "Configurações"
 
     choice
         bool "Mesh Topology"
@@ -169,4 +169,32 @@ menu "Example Configuration"
         default 50
         help
             The number of devices over the network(max: 300).
+
+
+
+    config TEMP_API_HTTP_HOST
+        string "Host do servidor API de temperatura"
+        default "192.168.15.11"
+        help
+            Host/domínio do servidor api.
+
+    config TEMP_API_HTTP_PORT
+        int "Porta do servidor API de temperatura"
+        range 80 65000
+        default 8000
+        help
+            Porta do servidor api.
+
+    config TEMP_API_HTTP_PATH
+        string "Path do servidor API de temperatura"
+        default "/graphs/temp"
+        help
+            Path do servidor api.
+
+    config TEMP_API_GEN_TIME
+        int "Intervalo para envio da temperatura"
+        range 1 1000000
+        default 60
+        help
+            Tempo em segudos.
 endmenu
