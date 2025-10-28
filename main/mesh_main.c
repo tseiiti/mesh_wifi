@@ -18,16 +18,10 @@
 
 
 /*******************************************************
- *                Constants
+ *          Constants and Variable Definitions
  *******************************************************/
 #define RX_SIZE (1500)
 #define TX_SIZE (1460)
-
-
-
-/*******************************************************
- *                Variable Definitions
- *******************************************************/
 
 char* ap_ip = NULL;
 char* ap_mac = NULL;
@@ -48,7 +42,7 @@ static esp_netif_t* netif_sta = NULL;
 
 
 /*******************************************************
- *                Function Definitions
+ *               P2P Function Definitions
  *******************************************************/
 
 // Envia temperatura para api
@@ -76,81 +70,6 @@ void http_rest_with_url(char* post_data) {
   esp_http_client_cleanup(client);
 }
 
-// void esp_mesh_p2p_tx_main(void* arg) {
-//   int i;
-//   int send_count = 0;
-//   mesh_addr_t route_table[CONFIG_MESH_ROUTE_TABLE_SIZE];
-//   int route_table_size = 0;
-//   mesh_data_t data;
-//   data.data = tx_buf;
-//   data.size = sizeof(tx_buf);
-//   data.proto = MESH_PROTO_BIN;
-//   data.tos = MESH_TOS_P2P;
-//   is_running = true;
-//   while (is_running) {
-//     /* non-root do nothing but print */
-//     if (!esp_mesh_is_root()) {
-//       ESP_LOGI(MESH_TAG, "layer:%d, rtableSize:%d, %s", mesh_layer,
-//                esp_mesh_get_routing_table_size(),
-//                is_mesh_connected ? "NODE" : "DISCONNECT");
-//       vTaskDelay(10 * 1000 / portTICK_PERIOD_MS);
-//       continue;
-//     }
-//     esp_mesh_get_routing_table((mesh_addr_t*)&route_table,
-//                                CONFIG_MESH_ROUTE_TABLE_SIZE * 6,
-//                                &route_table_size);
-//     if (send_count && !(send_count % 100)) {
-//       ESP_LOGI(MESH_TAG, "size:%d/%d,send_count:%d", route_table_size,
-//                esp_mesh_get_routing_table_size(), send_count);
-//     }
-//     for (i = 0; i < route_table_size; i++) {
-//       esp_mesh_send(&route_table[i], &data, MESH_DATA_P2P, NULL, 0);
-//     }
-//     if (route_table_size < 10) {
-//       vTaskDelay(1 * 1000 / portTICK_PERIOD_MS);
-//     }
-//   }
-//   vTaskDelete(NULL);
-// }
-
-// void esp_mesh_p2p_rx_main(void* arg) {
-//   // int recv_count = 0;
-//   esp_err_t err;
-//   mesh_addr_t from;
-//   int send_count = 0;
-//   mesh_data_t data;
-//   int flag = 0;
-//   data.data = rx_buf;
-//   data.size = RX_SIZE;
-//   is_running = true;
-//   while (is_running) {
-//     data.size = RX_SIZE;
-//     err = esp_mesh_recv(&from, &data, portMAX_DELAY, &flag, NULL, 0);
-//     if (err != ESP_OK || !data.size) {
-//       ESP_LOGE(MESH_TAG, "err:0x%x, size:%d", err, data.size);
-//       continue;
-//     }
-//     /* extract send count */
-//     if (data.size >= sizeof(send_count)) {
-//       send_count = (data.data[25] << 24) | (data.data[24] << 16) |
-//                    (data.data[23] << 8) | data.data[22];
-//     }
-//     // recv_count++;
-//     // /* process light control */
-//     // mesh_light_process(&from, data.data, data.size);
-//     // if (!(recv_count % 1)) {
-//     //   ESP_LOGW(
-//     //       MESH_TAG,
-//     //       "[#RX:%d/%d][L:%d] parent:" MACSTR ", receive from " MACSTR
-//     //       ", size:%d, heap:%" PRId32 ", flag:%d[err:0x%x, proto:%d, tos:%d]",
-//     //       recv_count, send_count, mesh_layer, MAC2STR(mesh_parent_addr.addr),
-//     //       MAC2STR(from.addr), data.size, esp_get_minimum_free_heap_size(), flag,
-//     //       err, data.proto, data.tos);
-//     // }
-//   }
-//   vTaskDelete(NULL);
-// }
-
 // // usar para receber pacotes da rede externa e enviar internamente
 // void tx_root_task(void* param) {
 //   // uint8_t rx_buf[RX_SIZE] = {0};
@@ -175,7 +94,7 @@ void http_rest_with_url(char* post_data) {
 //   while (1) {
 //     recvfrom(sock, rx_buf, sizeof(rx_buf) - 1, 0,
 //              (struct sockaddr*)&source_addr, &socklen);  // esperar mensagem
-//     ESP_LOGI(MESH_TAG, "tx root %s", rx_buf);  // imprime buffer nos logs
+//     ESP_LOGI(TAG, "tx root %s", rx_buf);  // imprime buffer nos logs
 //     // preencher tabela de roteamento com endereco MAC dos nodes filhos
 //     esp_mesh_get_routing_table((mesh_addr_t*)&route_table, CONFIG_MESH_ROUTE_TABLE_SIZE * 6,
 //                                &route_table_size);
@@ -201,8 +120,8 @@ void rx_root_task(void* param) {
   while (1) {
     if (esp_mesh_recv(&sender, &data, portMAX_DELAY, &flag, NULL, 0) == ESP_OK && ap_ip != NULL) {
       asprintf(&post_data, "{\"ip\":\"%s\",%s}", ap_ip, data.data); // prepara buffer para envio
-      http_rest_with_url(post_data);
-      ESP_LOGI(MESH_TAG, "post_data: %s", post_data);                          // imprime buffer
+      http_rest_with_url(post_data);                                // client api
+      ESP_LOGI(TAG, "post data: %s", post_data);               // imprime buffer
       free(post_data);
     }
   }
@@ -228,7 +147,8 @@ void tx_child_task(void* param) {
   ESP_ERROR_CHECK(temperature_sensor_get_celsius(temp_sensor, &tsens_value));
 
   // parte dos dados json
-  asprintf(&post_data, "\"pai\":\"%s\",\"endereco\":\"%s\",\"temperatura\":%.2f", ap_par, ap_mac, tsens_value);
+  asprintf(&post_data, "\"camada\":%d,\"pai\":\"%s\",\"endereco\":\"%s\",\"temperatura\":%.1f,\"memoria\":%"PRId32"", 
+    mesh_layer, ap_par, ap_mac, tsens_value, esp_get_minimum_free_heap_size());
 
   memcpy((uint8_t*)&tx_buf, post_data, strlen(post_data));
   data.data = tx_buf;
@@ -236,7 +156,7 @@ void tx_child_task(void* param) {
 
   while (1) {
     esp_mesh_send(NULL, &data, 0, NULL, 0);  // enviar mensagem para node principal
-    ESP_LOGI(MESH_TAG, "layer:%d, rtableSize:%d, %s, msg: [ %s ]", mesh_layer,
+    ESP_LOGI(TAG, "layer:%d, rtableSize:%d, %s, msg: [ %s ]", mesh_layer,
       esp_mesh_get_routing_table_size(), is_mesh_connected ? "NODE" : "DISCONNECT", data.data);
     vTaskDelay(CONFIG_TEMP_API_GEN_TIME * 1000 / portTICK_PERIOD_MS);
   }
@@ -252,7 +172,7 @@ void tx_child_task(void* param) {
 //   data.size = RX_SIZE;
 //   while (1) {
 //     if (esp_mesh_recv(&sender, &data, portMAX_DELAY, &flag, NULL, 0) == ESP_OK)
-//       ESP_LOGI(MESH_TAG, "child remetente: " MACSTR ", msg: %s", MAC2STR(sender.addr), data.data);
+//       ESP_LOGI(TAG, "child remetente: " MACSTR ", msg: %s", MAC2STR(sender.addr), data.data);
 //   }
 //   vTaskDelete(NULL);
 // }
@@ -317,6 +237,12 @@ esp_err_t esp_mesh_comm_p2p_start(void) {
 
   return ESP_OK;
 }
+
+
+
+/*******************************************************
+ *               Mesh Function Definitions
+ *******************************************************/
 
 // manipulador de eventos
 void mesh_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
@@ -456,8 +382,8 @@ void mesh_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
     } break;
     case MESH_EVENT_PS_CHILD_DUTY: {
       mesh_event_ps_duty_t* ps_duty = (mesh_event_ps_duty_t*)event_data;
-      ESP_LOGI(MESH_TAG, "<MESH_EVENT_PS_CHILD_DUTY>cidx:%d, " MACSTR ", duty:%d", ps_duty->child_connected.aid - 1,
-        MAC2STR(ps_duty->child_connected.mac), ps_duty->duty);
+      ESP_LOGI(MESH_TAG, "<MESH_EVENT_PS_CHILD_DUTY>cidx:%d, " MACSTR ", duty:%d", 
+        ps_duty->child_connected.aid - 1, MAC2STR(ps_duty->child_connected.mac), ps_duty->duty);
     } break;
     default:
       ESP_LOGI(MESH_TAG, "unknown id:%" PRId32 "", event_id);
@@ -487,7 +413,7 @@ void ip_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, 
 
 void app_main(void) {
   // define tamanho da variação da temperatura
-  temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
+  temperature_sensor_config_t temp_sensor_config = TEMPERATURE_SENSOR_CONFIG_DEFAULT(0, 50);
   ESP_ERROR_CHECK(temperature_sensor_install(&temp_sensor_config, &temp_sensor));
   ESP_ERROR_CHECK(temperature_sensor_enable(temp_sensor)); // ativa sensor de temperatura
 
@@ -503,6 +429,7 @@ void app_main(void) {
   ESP_ERROR_CHECK(esp_wifi_start()); // iniciar wi-fi
   ESP_ERROR_CHECK(esp_mesh_init()); // inicializar mesh
   ESP_ERROR_CHECK(esp_event_handler_register(MESH_EVENT, ESP_EVENT_ANY_ID, &mesh_event_handler, NULL)); // registrar função para lidar com eventos mesh
+  
   ESP_ERROR_CHECK(esp_mesh_set_topology(CONFIG_MESH_TOPOLOGY)); // definir topologia mesh
   ESP_ERROR_CHECK(esp_mesh_set_max_layer(CONFIG_MESH_MAX_LAYER)); // definir número de camadas da topologia
   ESP_ERROR_CHECK(esp_mesh_set_vote_percentage(1));
@@ -518,16 +445,17 @@ void app_main(void) {
 #endif
 
   mesh_cfg_t cfg = MESH_INIT_CONFIG_DEFAULT(); // configuração padrão mesh
-  memcpy((uint8_t*)&cfg.mesh_id, MESH_ID, 6); /* mesh ID */
-  cfg.channel = CONFIG_MESH_CHANNEL; /* router */
-  cfg.router.ssid_len = strlen(CONFIG_MESH_ROUTER_SSID);
-  memcpy((uint8_t*)&cfg.router.ssid, CONFIG_MESH_ROUTER_SSID, cfg.router.ssid_len);
-  memcpy((uint8_t*)&cfg.router.password, CONFIG_MESH_ROUTER_PASSWD, strlen(CONFIG_MESH_ROUTER_PASSWD));
+  memcpy((uint8_t*)&cfg.mesh_id, MESH_ID, 6); // atribuindo mesh ID para struct de configuracao
+  cfg.channel = CONFIG_MESH_CHANNEL; // canal do roteador
+  cfg.router.ssid_len = strlen(CONFIG_MESH_ROUTER_SSID); // tamanho da string do SSID
+  memcpy((uint8_t*)&cfg.router.ssid, CONFIG_MESH_ROUTER_SSID, cfg.router.ssid_len); // atribuir SSID do roteador para configuracao
+  memcpy((uint8_t*)&cfg.router.password, CONFIG_MESH_ROUTER_PASSWD, strlen(CONFIG_MESH_ROUTER_PASSWD)); // atribuir senha do roteador para configuracao
 
-  // ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(CONFIG_MESH_AP_AUTHMODE));
+  // ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(CONFIG_MESH_AP_AUTHMODE)); // ?
   ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(WIFI_AUTH_WPA2_PSK)); // modo de autenticação do softAP
   cfg.mesh_ap.max_connection = CONFIG_MESH_AP_CONNECTIONS; // número máximo de conexões softAP
-  cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS; // número máximo de conexões não mesh?
+  // cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS; // número máximo de conexões não mesh?
+  cfg.mesh_ap.nonmesh_max_connection = 1; // número máximo de conexões não mesh
   memcpy((uint8_t*)&cfg.mesh_ap.password, CONFIG_MESH_AP_PASSWD, strlen(CONFIG_MESH_AP_PASSWD)); // atribui senha do softAP
   ESP_ERROR_CHECK(esp_mesh_set_config(&cfg)); // submeter configurações mesh
   
@@ -537,4 +465,6 @@ void app_main(void) {
       esp_mesh_is_root_fixed() ? "root fixed" : "root not fixed",
       esp_mesh_get_topology(), esp_mesh_get_topology() ? "(chain)" : "(tree)",
       esp_mesh_is_ps_enabled());
+
+  ESP_LOGI(TAG, "CONFIG_MESH_AP_AUTHMODE:%d, CONFIG_MESH_NON_MESH_AP_CONNECTIONS:%d, WIFI_AUTH_WPA2_PSK:%d", CONFIG_MESH_AP_AUTHMODE, CONFIG_MESH_NON_MESH_AP_CONNECTIONS, WIFI_AUTH_WPA2_PSK);
 }
