@@ -121,7 +121,7 @@ void rx_root_task(void* param) {
     if (esp_mesh_recv(&sender, &data, portMAX_DELAY, &flag, NULL, 0) == ESP_OK && ap_ip != NULL) {
       asprintf(&post_data, "{\"ip\":\"%s\",%s}", ap_ip, data.data); // prepara buffer para envio
       http_rest_with_url(post_data);                                // client api
-      ESP_LOGI(TAG, "post data: %s", post_data);               // imprime buffer
+      ESP_LOGI(TAG, "post data: %s", post_data);                    // imprime buffer
       free(post_data);
     }
   }
