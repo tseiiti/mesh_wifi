@@ -172,24 +172,17 @@ menu "Configurações"
 
 
 
-    config TEMP_API_HTTP_HOST
-        string "Host do servidor API de temperatura"
-        default "192.168.15.11"
+    config TEMP_API_HTTP_URL
+        string "Url do servidor API de temperatura"
+        default "https://tseiiti.vercel.app/temps/temp"
         help
-            Host/domínio do servidor api.
+            URL do servidor api para cadastro de temperaturas.
 
-    config TEMP_API_HTTP_PORT
-        int "Porta do servidor API de temperatura"
-        range 80 65000
-        default 8000
+    config TEMP_API_URL_IS_TLS
+        bool "É HTTPS"
+        default y
         help
-            Porta do servidor api.
-
-    config TEMP_API_HTTP_PATH
-        string "Path do servidor API de temperatura"
-        default "/graphs/temp"
-        help
-            Path do servidor api.
+            Usa TSL
 
     config TEMP_API_GEN_TIME
         int "Intervalo para envio da temperatura"

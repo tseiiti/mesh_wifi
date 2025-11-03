@@ -3,17 +3,23 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "driver/temperature_sensor.h"
-#include "esp_event.h"
 #include "esp_http_client.h"
+#include "esp_event.h"
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_mesh.h"
 #include "esp_mesh_internal.h"
 #include "esp_wifi.h"
+#include "nvs_flash.h"
+#include "esp_tls.h"
+#if CONFIG_TEMP_API_URL_IS_TLS
+#include "esp_crt_bundle.h"
+#endif
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "nvs_flash.h"
+
+#include "driver/temperature_sensor.h"
 
 
 
@@ -50,11 +56,12 @@ void http_rest_with_url(char* post_data) {
   esp_err_t err = ESP_OK;
 
   esp_http_client_config_t http_client_config = {
-    .host = CONFIG_TEMP_API_HTTP_HOST,
-    .port = CONFIG_TEMP_API_HTTP_PORT,
-    .path = CONFIG_TEMP_API_HTTP_PATH,
+    .url = CONFIG_TEMP_API_HTTP_URL,
     .disable_auto_redirect = true,
     .method = HTTP_METHOD_POST,
+#if CONFIG_TEMP_API_URL_IS_TLS
+    .crt_bundle_attach = esp_crt_bundle_attach,
+#endif
   };
 
   esp_http_client_handle_t client = esp_http_client_init(&http_client_config);
@@ -217,13 +224,14 @@ esp_err_t esp_mesh_comm_p2p_start(void) {
 
   if (esp_mesh_is_root()) {
     // Inicializa verificação do nó root
-    xTaskCreate(check_health_task, "HEALTH_TASK", configMINIMAL_STACK_SIZE + 1024, NULL, configMAX_PRIORITIES - 3, NULL);
+    xTaskCreate(check_health_task, "HEALTH_TASK", configMINIMAL_STACK_SIZE + 1024, NULL, configMAX_PRIORITIES - 1, NULL);
     // xTaskCreate(tx_root_task, "TX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 3, NULL);
 
     // Inicializa recepções root
-    xTaskCreate(rx_root_task, "RX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 3, NULL);
+    xTaskCreate(rx_root_task, "RX_ROOT_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 2, NULL);
+    // xTaskCreate(tx_root_task, "TX_ROOT_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 3, NULL);
   } else {
-    // xTaskCreate(rx_child_task, "RX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 3, NULL);
+    // xTaskCreate(rx_child_task, "RX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 4, NULL);
     printf(
         "\n=============================================="
         "\n== MAC address: %s"
@@ -232,8 +240,8 @@ esp_err_t esp_mesh_comm_p2p_start(void) {
         ap_mac, ap_par);
   }
 
-  // Inicializa transmissões
-  xTaskCreate(tx_child_task, "TX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 3, NULL);
+  // Inicializa geração de mensagem de temperatura
+  xTaskCreate(tx_child_task, "TX_TASK", configMINIMAL_STACK_SIZE + 2048, NULL, configMAX_PRIORITIES - 5, NULL);
 
   return ESP_OK;
 }
@@ -451,11 +459,11 @@ void app_main(void) {
   memcpy((uint8_t*)&cfg.router.ssid, CONFIG_MESH_ROUTER_SSID, cfg.router.ssid_len); // atribuir SSID do roteador para configuracao
   memcpy((uint8_t*)&cfg.router.password, CONFIG_MESH_ROUTER_PASSWD, strlen(CONFIG_MESH_ROUTER_PASSWD)); // atribuir senha do roteador para configuracao
 
-  // ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(CONFIG_MESH_AP_AUTHMODE)); // ?
-  ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(WIFI_AUTH_WPA2_PSK)); // modo de autenticação do softAP
+  ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(CONFIG_MESH_AP_AUTHMODE)); // modo de autenticação do softAP
+  // ESP_ERROR_CHECK(esp_mesh_set_ap_authmode(WIFI_AUTH_WPA2_PSK)); // modo de autenticação do softAP
   cfg.mesh_ap.max_connection = CONFIG_MESH_AP_CONNECTIONS; // número máximo de conexões softAP
-  // cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS; // número máximo de conexões não mesh?
-  cfg.mesh_ap.nonmesh_max_connection = 1; // número máximo de conexões não mesh
+  cfg.mesh_ap.nonmesh_max_connection = CONFIG_MESH_NON_MESH_AP_CONNECTIONS; // número máximo de conexões não mesh?
+  // cfg.mesh_ap.nonmesh_max_connection = 1; // número máximo de conexões não mesh
   memcpy((uint8_t*)&cfg.mesh_ap.password, CONFIG_MESH_AP_PASSWD, strlen(CONFIG_MESH_AP_PASSWD)); // atribui senha do softAP
   ESP_ERROR_CHECK(esp_mesh_set_config(&cfg)); // submeter configurações mesh
   
